@@ -1,31 +1,31 @@
 package com.example.schedulewithqr;
 
+import android.content.Context;
 import android.content.DialogInterface;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.hardware.Camera;
 import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.Menu;
+import android.view.MenuInflater;
+import android.view.MenuItem;
+import android.view.WindowManager;
 import android.widget.Toast;
 
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
-import com.example.schedulewithqr.database.DatabaseAdapter;
-import com.example.schedulewithqr.logic.PairLogic;
-import com.example.schedulewithqr.logic.PairLogicImpl;
-import com.example.schedulewithqr.logic.QueryLogic;
-import com.example.schedulewithqr.logic.QueryLogicImpl;
 import com.example.schedulewithqr.model.Pair;
-import com.example.schedulewithqr.model.PairMapper;
+import com.example.schedulewithqr.service.PairService;
+import com.example.schedulewithqr.service.PairServiceImpl;
 import com.google.zxing.Result;
 
 import org.json.JSONException;
-
-import java.util.List;
-import java.util.Map;
 
 import me.dm7.barcodescanner.zxing.ZXingScannerView;
 
@@ -34,39 +34,39 @@ import static android.Manifest.permission.CAMERA;
 public class MainActivity extends AppCompatActivity implements ZXingScannerView.ResultHandler {
     private static final String TITLE = "В данном кабинете сейчас:";
     private static final String NO_PAIR = "В данный момент пар нет";
+    private static final String EXCEPTION = "QR-код содержит некорректные данные.";
 
     private static final int REQUEST_CAMERA = 1;
     private ZXingScannerView scannerView;
+    private PairService pairService;
     private static int camId = Camera.CameraInfo.CAMERA_FACING_BACK;
-    private DatabaseAdapter adapter;
-    private PairMapper pairMapper;
-    private QueryLogic queryLogic;
-    private PairLogic pairLogic;
+    private final Context context = this;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        setTheme(R.style.AppTheme);
+        this.getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN, WindowManager.LayoutParams.FLAG_FULLSCREEN);
+        //getSupportActionBar().hide();
         super.onCreate(savedInstanceState);
-        adapter = new DatabaseAdapter(this);
-        pairMapper = new PairMapper();
-        queryLogic = new QueryLogicImpl();
         scannerView = new ZXingScannerView(this);
-        pairLogic = new PairLogicImpl(this);
         setContentView(scannerView);
         int currentApiVersion = Build.VERSION.SDK_INT;
-
+        pairService = new PairServiceImpl(this);
         if (currentApiVersion >= Build.VERSION_CODES.M) {
             if (checkPermission()) {
-                Toast.makeText(getApplicationContext(), "Permission already granted!", Toast.LENGTH_LONG).show();
+                Toast.makeText(getApplicationContext(),
+                        "Permission already granted!", Toast.LENGTH_LONG).show();
             } else {
                 requestPermission();
             }
         }
     }
 
+
     @Override
     public void onResume() {
         super.onResume();
-
         int currentapiVersion = android.os.Build.VERSION.SDK_INT;
         if (currentapiVersion >= android.os.Build.VERSION_CODES.M) {
             if (checkPermission()) {
@@ -92,15 +92,19 @@ public class MainActivity extends AppCompatActivity implements ZXingScannerView.
         switch (requestCode) {
             case REQUEST_CAMERA:
                 if (grantResults.length > 0) {
-
                     boolean cameraAccepted = grantResults[0] == PackageManager.PERMISSION_GRANTED;
                     if (cameraAccepted) {
-                        Toast.makeText(getApplicationContext(), "Permission Granted, Now you can access camera", Toast.LENGTH_LONG).show();
+                        Toast.makeText(getApplicationContext(),
+                                "Permission Granted, Now you can access camera",
+                                Toast.LENGTH_LONG).show();
                     } else {
-                        Toast.makeText(getApplicationContext(), "Permission Denied, You cannot access and camera", Toast.LENGTH_LONG).show();
+                        Toast.makeText(getApplicationContext(),
+                                "Permission Denied, You cannot access and camera",
+                                Toast.LENGTH_LONG).show();
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                             if (shouldShowRequestPermissionRationale(CAMERA)) {
-                                showMessageOKCancel("You need to allow access to both the permissions",
+                                showMessageOKCancel(
+                                        "You need to allow access to both the permissions",
                                         new DialogInterface.OnClickListener() {
                                             @Override
                                             public void onClick(DialogInterface dialog, int which) {
@@ -119,6 +123,27 @@ public class MainActivity extends AppCompatActivity implements ZXingScannerView.
         }
     }
 
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        MenuInflater inflater = getMenuInflater();
+        inflater.inflate(R.menu.qr_menu, menu);
+        return super.onCreateOptionsMenu(menu);
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(@NonNull MenuItem item) {
+        switch (item.getItemId()){
+            case R.id.actionGoToLogin:
+                startActivity(new Intent(this, AuthActivity.class));
+                finish();
+                break;
+            default:
+                break;
+
+        }
+        return super.onOptionsItemSelected(item);
+    }
+
     private void showMessageOKCancel(String message, DialogInterface.OnClickListener okListener) {
         new AlertDialog.Builder(MainActivity.this)
                 .setMessage(message)
@@ -128,7 +153,6 @@ public class MainActivity extends AppCompatActivity implements ZXingScannerView.
                 .show();
     }
 
-
     private void requestPermission() {
         ActivityCompat.requestPermissions(this, new String[]{CAMERA}, REQUEST_CAMERA);
     }
@@ -137,15 +161,22 @@ public class MainActivity extends AppCompatActivity implements ZXingScannerView.
         return (ContextCompat.checkSelfPermission(getApplicationContext(), CAMERA) == PackageManager.PERMISSION_GRANTED);
     }
 
-
     @Override
     public void handleResult(Result result) {
         final String myResult = result.getText();
-        Log.d("QRCodeScanner", result.getText());
-        Log.d("QRCodeScanner", result.getBarcodeFormat().toString());
-
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        final AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle(TITLE);
+        builder.setNeutralButton("Занятия в аудитории", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                try {
+                    startActivity(prepareIntent(myResult));
+                } catch (Exception e) {
+                    builder.setMessage(EXCEPTION);
+                    alterShow(builder);
+                }
+            }
+        });
         builder.setPositiveButton("OK", new DialogInterface.OnClickListener() {
             @Override
             public void onClick(DialogInterface dialog, int which) {
@@ -153,21 +184,30 @@ public class MainActivity extends AppCompatActivity implements ZXingScannerView.
             }
         });
         try {
-            Map<String, String> params = queryLogic.createQueryParams(myResult);
-            Integer building = Integer.valueOf(params.get("building"));
-            Integer room = Integer.valueOf(params.get("room"));
-            List<Pair> pairs = adapter.getPair(pairMapper, building, room, params.get("time"), params.get("day"));
-            Pair currentPair = pairLogic.getCurrentPair(pairs);
+            Pair currentPair = pairService.getPair(myResult);
             if (currentPair.isEmpty()) {
                 builder.setMessage(NO_PAIR);
             } else {
                 builder.setMessage(currentPair.toString());
             }
-            AlertDialog alert1 = builder.create();
-            alert1.show();
-
-        } catch (JSONException e) {
-            builder.setMessage(e.getMessage());
+            alterShow(builder);
+        } catch (Exception e) {
+            Log.d("error",e.getMessage());
+            builder.setMessage(EXCEPTION);
+            alterShow(builder);
         }
+    }
+
+    private void alterShow(AlertDialog.Builder builder) {
+        AlertDialog alert1 = builder.create();
+        alert1.show();
+    }
+
+    private Intent prepareIntent(String myResult) throws JSONException {
+        pairService.getPair(myResult);
+        Intent intent = new Intent(context,RoomActivity.class);
+        intent.putExtra("qrResult",myResult);
+        intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+        return intent;
     }
 }

@@ -15,9 +15,9 @@ public class PairLogicImpl implements PairLogic {
     private DatabaseAdapter adapter;
     private MonthMapper monthMapper;
 
-    public PairLogicImpl(Context context) {
-        this.adapter = new DatabaseAdapter(context);
-        this.monthMapper = new MonthMapper();
+    public PairLogicImpl(DatabaseAdapter adapter, MonthMapper monthMapper) {
+        this.adapter = adapter;
+        this.monthMapper = monthMapper;
     }
 
     @Override

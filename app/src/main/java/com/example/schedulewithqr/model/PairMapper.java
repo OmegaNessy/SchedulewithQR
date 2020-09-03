@@ -2,17 +2,17 @@ package com.example.schedulewithqr.model;
 
 import android.database.Cursor;
 
-public class PairMapper {
+public class PairMapper implements Mapper<Pair>{
 
     private static final String COLUMN_ROOM = "room";
     private static final String COLUMN_DAY = "day";
     private static final String COLUMN_TIME = "time";
     private static final String COLUMN_PAIR = "lesson";
     private static final String COLUMN_TEACHER = "teacher";
-    private static final String COLUMN_GROUP = "group";
-    private static final String COLUMN_WEEK = "week_number";
+    private static final String COLUMN_GROUP = "groupNum";
+    private static final String COLUMN_WEEK = "week_num";
 
-    public Pair collectPair(Cursor cursor){
+    public Pair collectObject(Cursor cursor){
         Pair pair =new Pair();
         int room = cursor.getInt(cursor.getColumnIndex(COLUMN_ROOM));
         pair.setRoom(room);

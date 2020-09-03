@@ -88,10 +88,10 @@ public class Pair {
 
     @Override
     public String toString() {
-        return "Кабитнет:" + room + ";\n" +
-                "Пара:" + pair + ";\n" +
-                "Преподаватель:" + teacher + ";\n" +
-                "Группа:" + group + ";\n" +
-                "Время проведения:" + time + ".";
+        return "Кабитнет: " + room + ";\n" +
+                "Пара: " + pair + ";\n" +
+                "Преподаватель: " + teacher + ";\n" +
+                "Группа: " + group + ";\n" +
+                "Время проведения: " + time + ".";
     }
 }
